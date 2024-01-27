@@ -178,19 +178,33 @@ public class SeleniumService {
             }
 
             By enterStreamingButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div/div[2]/div/button");
-            By closeStreamingButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[1]/div[2]/div[2]/div/button");
-            By closeStreamingConfirmButtonXpath = By.xpath("/html/body/div[3]/div/div/div/div[2]/div/div/div/div/div[2]/div[2]/button");
 
-            Wait<WebDriver> wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            By closeStreamingButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[1]/div[2]/div[2]/div/button");
+            By closeStreamingButtonAlternateXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[1]/div[2]/div[3]/div/button");
+
+            By closeStreamingConfirmButtonXpath = By.xpath("/html/body/div[3]/div/div/div/div[2]/div/div/div/div/div[2]/div[2]/button");
+            By closeStreamingConfirmButtonAlternateXpath = By.xpath("/html/body/div[4]/div/div/div/div[2]/div/div/div/div/div[2]/div[2]/button");
+
+            Wait<WebDriver> wait = new WebDriverWait(driver, Duration.ofSeconds(5));
 
             WebElement enterStreamingButtonElement = wait.until(ExpectedConditions.elementToBeClickable(enterStreamingButtonXpath));
             enterStreamingButtonElement.click();
 
-            WebElement closeStreamingButtonElement = wait.until(ExpectedConditions.elementToBeClickable(closeStreamingButtonXpath));
-            closeStreamingButtonElement.click();
+            try {
+                WebElement closeStreamingButtonElement = wait.until(ExpectedConditions.elementToBeClickable(closeStreamingButtonXpath));
+                closeStreamingButtonElement.click();
+            } catch (Exception e) {
+                WebElement closeStreamingButtonElement = wait.until(ExpectedConditions.elementToBeClickable(closeStreamingButtonAlternateXpath));
+                closeStreamingButtonElement.click();
+            }
 
-            WebElement closeStreamingConfirmButtonElement = wait.until(ExpectedConditions.elementToBeClickable(closeStreamingConfirmButtonXpath));
-            closeStreamingConfirmButtonElement.click();
+            try {
+                WebElement closeStreamingConfirmButtonElement = wait.until(ExpectedConditions.elementToBeClickable(closeStreamingConfirmButtonXpath));
+                closeStreamingConfirmButtonElement.click();
+            } catch (Exception e) {
+                WebElement closeStreamingConfirmButtonElement = wait.until(ExpectedConditions.elementToBeClickable(closeStreamingConfirmButtonAlternateXpath));
+                closeStreamingConfirmButtonElement.click();
+            }
         } catch (Exception e) {
             log.error("close streaming fail: ", e);
         } finally {

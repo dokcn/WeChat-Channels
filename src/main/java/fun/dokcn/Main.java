@@ -131,7 +131,10 @@ public class Main {
         ChromeOptions options = new ChromeOptions();
 
         Optional<String> browserBinaryLocation = Optional.ofNullable(System.getProperty(BROWSER_BINARY_LOCATION_PROPERTY_NAME));
-        browserBinaryLocation.ifPresent(binary -> options.setBinary(new File(binary)));
+        browserBinaryLocation.ifPresent(binary -> {
+            log.info("using chrome binary location: {}", binary);
+            options.setBinary(new File(binary));
+        });
 
         options.setImplicitWaitTimeout(Duration.ofSeconds(5));
 
@@ -175,7 +178,10 @@ public class Main {
                 .withLogLevel(logLevel);
 
         Optional<String> driverBinaryLocation = Optional.ofNullable(System.getProperty(DRIVER_BINARY_LOCATION_PROPERTY_NAME));
-        driverBinaryLocation.ifPresent(binary -> driverServiceBuilder.usingDriverExecutable(new File(binary)));
+        driverBinaryLocation.ifPresent(binary -> {
+            log.info("using chromedriver binary location: {}", binary);
+            driverServiceBuilder.usingDriverExecutable(new File(binary));
+        });
 
         return driverServiceBuilder.build();
     }

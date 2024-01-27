@@ -101,13 +101,12 @@ public class SchedulingUtil {
 
     public static void changeTriggerTime(LocalTime triggerTime, boolean isPermanent) {
         try {
-            // Trigger oldTrigger = scheduler.getTrigger(triggerKey);
             Trigger trigger = createTrigger(isPermanent ? CLOSE_STREAMING_TRIGGER_KEY : CLOSE_STREAMING_ONCE_TRIGGER_KEY,
                     triggerTime,
                     CLOSE_STREAMING_JOB_KEY);
 
-            if (isPermanent) {
-                TriggerKey triggerKey = TriggerKey.triggerKey(CLOSE_STREAMING_TRIGGER_KEY);
+            TriggerKey triggerKey = trigger.getKey();
+            if (scheduler.getTrigger(triggerKey) != null) {
                 scheduler.rescheduleJob(triggerKey, trigger);
             } else {
                 scheduler.scheduleJob(trigger);

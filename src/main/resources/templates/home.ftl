@@ -44,7 +44,6 @@
         <div>程序发生异常：${exception}</div>
     </#if>
 
-    <#--todo logout-->
     <div>是否已登录：${isLoggedIn?string('是', '否')}</div>
     <#if !isLoggedIn>
         <a href="/login">去登录</a>

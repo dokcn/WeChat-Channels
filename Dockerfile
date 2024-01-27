@@ -15,7 +15,7 @@ ENV LANG=C.utf8
 # update apt repo and install utility
 RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list && \
     apt-get update && \
-    apt-get install --no-install-recommends wget unzip -y
+    apt-get install --no-install-recommends curl wget unzip -y
 
 # install jdk
 ARG jdkVersion=17
@@ -33,13 +33,18 @@ RUN wget -nv $chromeDownloadUrl && \
     google-chrome --version && \
     rm google-chrome-stable_current_amd64.deb
 
-ARG chromeDriverDownloadUrl=https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.109/linux64/chromedriver-linux64.zip
-RUN wget -nv $chromeDriverDownloadUrl && \
-    unzip chromedriver-linux64.zip && \
-    cp chromedriver-linux64/chromedriver /bin && \
-    chromedriver --version && \
-    rm -rf chromedriver-linux64 && \
+RUN <<EOC
+    set -ex
+    fullChromeVersion=`google-chrome --version`
+    chromeVersion=`echo $fullChromeVersion | cut -d ' ' -f 3 | cut -d '.' -f 1,2,3`
+    chromedriverVersion=`curl https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${chromeVersion}`
+    wget -nv https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${chromedriverVersion}/linux64/chromedriver-linux64.zip
+    unzip chromedriver-linux64.zip
+    cp chromedriver-linux64/chromedriver /bin
+    chromedriver --version
+    rm -rf chromedriver-linux64
     rm chromedriver-linux64.zip
+EOC
 
 # remove apt cache
 RUN rm -rf /var/lib/apt/lists/*
@@ -67,4 +72,4 @@ RUN mvn compile -DskipTests
 #ENV MAVEN_OPTS="-Xms256m -Xmx256m"
 
 # default behavior: run java application
-ENTRYPOINT mvn -Dheadless -DwebDriverLogLevel=info -X exec:java
+ENTRYPOINT mvn -Dheadless -DwebDriverLogLevel=info -DdriverBinaryLocation=/bin/chromedriver -X exec:java
