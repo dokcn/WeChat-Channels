@@ -1,8 +1,10 @@
 package fun.dokcn;
 
+import cn.hutool.core.util.StrUtil;
 import com.hellokaton.blade.Blade;
-import com.hellokaton.blade.mvc.http.Request;
-import fun.dokcn.util.SchedulingUtil;
+import com.hellokaton.blade.mvc.WebContext;
+import fun.dokcn.entity.IncomeInfo;
+import fun.dokcn.service.TriggerService;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeDriverService;
@@ -15,14 +17,15 @@ import java.io.File;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Optional;
 
 import static fun.dokcn.Constants.*;
-import static fun.dokcn.service.SeleniumService.*;
+import static fun.dokcn.service.IncomeService.getIncomeInfoList;
+import static fun.dokcn.service.StreamingService.*;
 import static fun.dokcn.util.DateTimeUtil.DATE_TIME_FORMATTER;
 import static fun.dokcn.util.DateTimeUtil.TIME_FORMATTER;
-import static fun.dokcn.util.SchedulingUtil.getNextTriggerTime;
-import static fun.dokcn.util.SchedulingUtil.scheduleCloseStreaming;
+import static fun.dokcn.util.SchedulingUtil.*;
 
 @Slf4j
 public class Main {
@@ -31,23 +34,7 @@ public class Main {
 
         log.info("starting program...");
 
-        boolean headless = System.getProperty(HEADLESS_PROPERTY_NAME) != null;
-        ChromiumDriverLogLevel webDriverLogLevel = ChromiumDriverLogLevel
-                .fromString(System.getProperty(WEB_DRIVER_LOG_LEVEL_PROPERTY_NAME, "warning"));
-
-        ChromeOptions options = createOptions(headless);
-        ChromeDriverService driverService = createDriverService(webDriverLogLevel);
-
-        RemoteWebDriver driver = new ChromeDriver(driverService, options);
-        driver = new EventFiringDecorator<>(RemoteWebDriver.class, new SeleniumListener(driver))
-                .decorate(driver);
-
-        // Utils.recordConsoleLogs(driver);
-
-        driver.get(HOMEPAGE_URL);
-        driver.navigate().refresh();
-
-        Runtime.getRuntime().addShutdownHook(new Thread(driver::quit));
+        RemoteWebDriver driver = configSelenium();
 
         createBlade(driver).start(args);
 
@@ -55,9 +42,13 @@ public class Main {
 
     static Blade createBlade(RemoteWebDriver driver) {
         log.info("creating blade...");
-        return Blade.create()
-                .get("/", ctx -> {
+        Blade blade = Blade.create();
+        blade.staticOptions().addStatic("\\static");
+
+        // todo: do not check streaming status generally
+        blade.get("/", ctx -> {
                     boolean loggedIn = isLoggedIn(driver);
+                    ctx.attribute("isLoggedIn", loggedIn);
                     if (loggedIn && !LOGIN_FINISHED) {
                         ctx.redirect("/finishLogin");
                         return;
@@ -66,14 +57,16 @@ public class Main {
                     String exception = ctx.query("exception");
                     ctx.attribute("exception", exception);
 
-                    ctx.attribute("isLoggedIn", loggedIn);
-                    ctx.attribute("isStreaming", isStreaming(driver,
-                            ctx.query("doNotCheckIsStreaming") == null));
+                    if (loggedIn) {
+                        boolean doNotCheckIsStreaming = ctx.query("doNotCheckIsStreaming") != null;
+                        ctx.attribute("isStreaming", !doNotCheckIsStreaming && isStreaming(driver));
 
-                    LocalDateTime nextTriggerTime = getNextTriggerTime();
-                    if (nextTriggerTime != null) {
-                        ctx.attribute("nextTriggerTime", DATE_TIME_FORMATTER.format(nextTriggerTime));
-                        ctx.attribute("timePlaceholder", TIME_FORMATTER.format(nextTriggerTime));
+                        LocalDateTime nextTriggerTime = getNextTriggerTime();
+                        if (nextTriggerTime != null) {
+                            ctx.attribute("nextTriggerTime", DATE_TIME_FORMATTER.format(nextTriggerTime));
+                        }
+
+                        ctx.attribute("triggers", getTriggerInfosOfJob(CLOSE_STREAMING_JOB_KEY));
                     }
 
                     ctx.render("home");
@@ -98,33 +91,110 @@ public class Main {
                             log.info("actions after login has finished");
                         } else {
                             startRefresherThread(driver);
-                            scheduleCloseStreaming(driver);
+                            String defaultTriggerTime = WebContext.blade()
+                                    .getEnv("trigger.default.closeStreamingTriggerTime", "22:40");
+                            scheduleCloseStreaming(driver, defaultTriggerTime);
                             LOGIN_FINISHED = true;
                         }
                     }
-                    ctx.redirect("/?doNotCheckIsStreaming");
+                    ctx.redirect("/");
                 })
 
                 .get("/logout", ctx -> {
                     logout(driver);
-                    ctx.redirect("/?doNotCheckIsStreaming");
+                    ctx.redirect("/");
                 })
 
                 .post("/closeStreaming", ctx -> {
                     closeStreaming(driver);
                     ctx.redirect("/");
+                });
+
+        blade.post("/trigger/addOrModifyTrigger", ctx -> {
+                    String triggerName = ctx.request().form("triggerName").orElse(null);
+
+                    LocalTime time = ctx.request().form("time")
+                            .map(timeString -> LocalTime.parse(timeString, TIME_FORMATTER))
+                            .orElseThrow(() -> new IllegalArgumentException("time not passed"));
+
+                    boolean repeated = ctx.request().formBoolean("repeated", false);
+
+                    boolean changeTriggerTime = ctx.request().formBoolean("changeTriggerTime")
+                            .orElseThrow(() -> new IllegalArgumentException("changeTriggerTime not passed"));
+
+                    if (changeTriggerTime && StrUtil.isBlank(triggerName)) {
+                        throw new IllegalArgumentException("triggerName not passed");
+                    }
+
+                    blade.getBean(TriggerService.class).addOrModifyTrigger(triggerName, time, repeated, changeTriggerTime);
+
+                    ctx.redirect("/?doNotCheckIsStreaming");
                 })
 
-                .post("/changeCloseStreamingTime", ctx -> {
-                    Request request = ctx.request();
-                    LocalTime timeToChange = request.form("timeToChange")
-                            .map(time -> LocalTime.parse(time, TIME_FORMATTER))
-                            .orElseThrow(() -> new IllegalArgumentException("timeToChange not passed"));
-                    boolean isPermanent = request.formBoolean("isPermanent", false);
-                    SchedulingUtil.changeTriggerTime(timeToChange, isPermanent);
+                .post("/trigger/removeTrigger", ctx -> {
+                    String triggerName = ctx.request().form("triggerName").orElse(null);
+                    if (StrUtil.isBlank(triggerName)) {
+                        throw new IllegalArgumentException("triggerName not passed");
+                    }
+
+                    blade.getBean(TriggerService.class).removeTrigger(triggerName);
 
                     ctx.redirect("/?doNotCheckIsStreaming");
                 });
+
+        blade.get("/income", ctx -> {
+            boolean loggedIn = isLoggedIn(driver);
+            if (!loggedIn) {
+                ctx.redirect("/login");
+                return;
+            }
+
+            List<IncomeInfo> incomeInfoList = getIncomeInfoList(driver, 0);
+            ctx.attribute("incomeInfoList", incomeInfoList);
+
+            ctx.render("income");
+        });
+
+        blade.get("/test", ctx -> {
+
+        });
+
+        return blade;
+    }
+
+    static RemoteWebDriver configSelenium() {
+        boolean headless = System.getProperty(HEADLESS_PROPERTY_NAME) != null;
+        ChromiumDriverLogLevel webDriverLogLevel = ChromiumDriverLogLevel
+                .fromString(System.getProperty(WEB_DRIVER_LOG_LEVEL_PROPERTY_NAME, "warning"));
+
+        ChromeDriverService driverService = createDriverService(webDriverLogLevel);
+        ChromeOptions options = createOptions(headless);
+
+        RemoteWebDriver driver = new ChromeDriver(driverService, options);
+        driver = new EventFiringDecorator<>(RemoteWebDriver.class, new SeleniumListener(driver))
+                .decorate(driver);
+
+        // Utils.recordConsoleLogs(driver);
+
+        driver.get(HOMEPAGE_URL);
+        driver.navigate().refresh();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(driver::quit));
+        return driver;
+    }
+
+    static ChromeDriverService createDriverService(ChromiumDriverLogLevel logLevel) {
+        ChromeDriverService.Builder driverServiceBuilder = new ChromeDriverService.Builder()
+                .withLogOutput(System.out)
+                .withLogLevel(logLevel);
+
+        Optional<String> driverBinaryLocation = Optional.ofNullable(System.getProperty(DRIVER_BINARY_LOCATION_PROPERTY_NAME));
+        driverBinaryLocation.ifPresent(binary -> {
+            log.info("using chromedriver binary location: {}", binary);
+            driverServiceBuilder.usingDriverExecutable(new File(binary));
+        });
+
+        return driverServiceBuilder.build();
     }
 
     static ChromeOptions createOptions(boolean headless) {
@@ -170,20 +240,6 @@ public class Main {
         options.addArguments("--no-sandbox");
 
         return options;
-    }
-
-    static ChromeDriverService createDriverService(ChromiumDriverLogLevel logLevel) {
-        ChromeDriverService.Builder driverServiceBuilder = new ChromeDriverService.Builder()
-                .withLogOutput(System.out)
-                .withLogLevel(logLevel);
-
-        Optional<String> driverBinaryLocation = Optional.ofNullable(System.getProperty(DRIVER_BINARY_LOCATION_PROPERTY_NAME));
-        driverBinaryLocation.ifPresent(binary -> {
-            log.info("using chromedriver binary location: {}", binary);
-            driverServiceBuilder.usingDriverExecutable(new File(binary));
-        });
-
-        return driverServiceBuilder.build();
     }
 
 }

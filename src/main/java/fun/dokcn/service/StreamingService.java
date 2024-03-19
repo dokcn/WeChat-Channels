@@ -2,7 +2,10 @@ package fun.dokcn.service;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.openqa.selenium.*;
+import org.openqa.selenium.By;
+import org.openqa.selenium.Cookie;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -18,15 +21,18 @@ import java.util.Date;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.StringTokenizer;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static fun.dokcn.Constants.*;
-import static fun.dokcn.util.MiscUtil.randomIntegerInRange;
 import static fun.dokcn.util.MiscUtil.sleepInSeconds;
+import static fun.dokcn.util.RandomUtil.randomIntegerInRange;
 import static fun.dokcn.util.SchedulingUtil.clearScheduler;
 
 @Slf4j
-public class SeleniumService {
+public class StreamingService {
 
     public static void saveCookies(WebDriver driver) throws Exception {
         driver.get(HOMEPAGE_URL);
@@ -94,18 +100,47 @@ public class SeleniumService {
         isLoggedIn = true;
     }*/
 
-    public static boolean isStreaming(WebDriver driver, boolean needRefresh) {
+    private static final ExecutorService IS_STREAMING_DETECTOR_POOL = Executors.newCachedThreadPool();
+
+    public static boolean isStreaming(WebDriver driver) {
         if (!isLoggedIn(driver)) return false;
 
-        if (toHomepage(driver) && needRefresh)
+        if (toHomepage(driver))
             driver.navigate().refresh();
 
+        By loadingXpath = By.xpath("//*[@id=\"container-wrap\"]/div[1]");
+        By startStreamingButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div[1]/div/div[3]/div[2]/div/button");
+        By enterStreamingRoomButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div/div[2]/div/button");
+
         try {
-            driver.findElement(By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div/div[2]/div/button"));
-            return true;
-        } catch (NoSuchElementException e) {
-            return false;
+            Wait<WebDriver> wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            wait.until(ExpectedConditions.invisibilityOfElementLocated(loadingXpath));
+        } catch (Exception e) {
+            log.error("wait for loading layer wrong: ", e);
         }
+
+        boolean isStreaming = CompletableFuture.anyOf(
+                CompletableFuture.supplyAsync(() -> {
+                    try {
+                        Wait<WebDriver> waitForStartStreamingButton = new WebDriverWait(driver, Duration.ofSeconds(5));
+                        waitForStartStreamingButton.until(ExpectedConditions.presenceOfElementLocated(startStreamingButtonXpath));
+                        return false;
+                    } catch (Exception e) {
+                        return true;
+                    }
+                }, IS_STREAMING_DETECTOR_POOL),
+                CompletableFuture.supplyAsync(() -> {
+                    try {
+                        Wait<WebDriver> waitForEnterStreamingRoomButton = new WebDriverWait(driver, Duration.ofSeconds(5));
+                        waitForEnterStreamingRoomButton.until(ExpectedConditions.presenceOfElementLocated(enterStreamingRoomButtonXpath));
+                        return true;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }, IS_STREAMING_DETECTOR_POOL)
+        ).handle((result, error) -> error == null && (boolean) result).join();
+
+        return isStreaming;
     }
 
     /**
@@ -165,6 +200,7 @@ public class SeleniumService {
     }
 
     public static synchronized void closeStreaming(WebDriver driver) {
+        // todo: handle situation of not streaming
         isLoggedIn(driver, true);
 
         while (inRefreshing) {
@@ -177,7 +213,7 @@ public class SeleniumService {
                 driver.navigate().refresh();
             }
 
-            By enterStreamingButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div/div[2]/div/button");
+            By enterStreamingRoomButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div/div[2]/div/button");
 
             By closeStreamingButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[1]/div[2]/div[2]/div/button");
             By closeStreamingButtonAlternateXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[1]/div[2]/div[3]/div/button");
@@ -185,10 +221,10 @@ public class SeleniumService {
             By closeStreamingConfirmButtonXpath = By.xpath("/html/body/div[3]/div/div/div/div[2]/div/div/div/div/div[2]/div[2]/button");
             By closeStreamingConfirmButtonAlternateXpath = By.xpath("/html/body/div[4]/div/div/div/div[2]/div/div/div/div/div[2]/div[2]/button");
 
-            Wait<WebDriver> wait = new WebDriverWait(driver, Duration.ofSeconds(5));
+            Wait<WebDriver> wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
-            WebElement enterStreamingButtonElement = wait.until(ExpectedConditions.elementToBeClickable(enterStreamingButtonXpath));
-            enterStreamingButtonElement.click();
+            WebElement enterStreamingRoomButtonElement = wait.until(ExpectedConditions.elementToBeClickable(enterStreamingRoomButtonXpath));
+            enterStreamingRoomButtonElement.click();
 
             try {
                 WebElement closeStreamingButtonElement = wait.until(ExpectedConditions.elementToBeClickable(closeStreamingButtonXpath));
@@ -220,10 +256,13 @@ public class SeleniumService {
 
         toHomepage(driver);
 
-        WebElement usernameBarElement = driver.findElement(By.xpath("/html/body/div[1]/div/div[1]/div/div/div[2]/div/div[2]"));
+        // todo: add wait
+        By usernameBarXpath = By.xpath("/html/body/div[1]/div/div[1]/div/div/div[2]/div/div[2]");
+        WebElement usernameBarElement = driver.findElement(usernameBarXpath);
         usernameBarElement.click();
 
-        WebElement logoutButtonElement = driver.findElement(By.xpath("/html/body/div[1]/div/div[1]/div/div/div[2]/div/div[2]/div[1]/div[2]"));
+        By logoutButtonXpath = By.xpath("/html/body/div[1]/div/div[1]/div/div/div[2]/div/div[2]/div[1]/div[2]");
+        WebElement logoutButtonElement = driver.findElement(logoutButtonXpath);
         logoutButtonElement.click();
 
         clearScheduler();

@@ -1,20 +1,35 @@
-button, a {
+* {
+    font-family: "Microsoft YaHei", sans-serif;
+    font-size: 25px;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+a, button {
     display: flex;
     justify-content: center;
     align-items: center;
 
-    color: #f8f8f8;
-    background-color: limegreen;
-
-    width: 110px;
-    height: 35px;
-    border: none;
     box-sizing: border-box;
-    padding: 15px;
-    margin-bottom: 10px;
-    border-radius: 30px;
+    width: 120px;
+    height: 40px;
+
+    color: #FAFAFA;
+    background-color: #32CD32;
+    border: none;
+    text-decoration: none;
+    border-radius: 3px;
 
     font-size: 16px;
-    font-weight: 500;
-    text-decoration: none;
+    font-weight: 600;
+
+    cursor: pointer;
+    padding-bottom: 2px;
+    margin-bottom: 10px;
 }

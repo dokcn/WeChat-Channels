@@ -1,7 +1,5 @@
 package fun.dokcn;
 
-import java.time.LocalTime;
-
 public interface Constants {
 
     String COOKIES_FILE_PATH = "g:/cookies.txt";
@@ -11,6 +9,7 @@ public interface Constants {
 
     // urls
     String STREAMING_HOME_URL = "https://channels.weixin.qq.com/platform/live/home";
+    String INCOME_INFO_URL = "https://channels.weixin.qq.com/platform/statistic/live?mode=history";
 
     String LOGIN_URL = "https://channels.weixin.qq.com/login.html";
     String HOMEPAGE_URL = STREAMING_HOME_URL;
@@ -22,10 +21,7 @@ public interface Constants {
     String WEB_DRIVER_LOG_LEVEL_PROPERTY_NAME = "webDriverLogLevel";
 
     // scheduling related
-    LocalTime CLOSE_STREAMING_TRIGGER_TIME = LocalTime.of(22, 30, 0);
-
-    String CLOSE_STREAMING_JOB_KEY = "closeStreamingJobDetail";
-    String CLOSE_STREAMING_TRIGGER_KEY = "closeStreamingTrigger";
-    String CLOSE_STREAMING_ONCE_TRIGGER_KEY = "closeStreamingOnceTrigger";
+    String CLOSE_STREAMING_JOB_NAME = "closeStreamingJobDetail";
+    String STREAMING_GROUP = "streamingGroup";
 
 }

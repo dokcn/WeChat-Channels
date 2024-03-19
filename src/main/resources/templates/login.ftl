@@ -7,15 +7,6 @@
     <link rel="stylesheet" href="../static/common.css">
     <script src="../static/poll.js"></script>
     <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            font-family: sans-serif;
-            box-sizing: border-box;
-        }
-
         form {
             display: flex;
             flex-direction: column;

@@ -1,6 +1,7 @@
 package fun.dokcn.util;
 
 import fun.dokcn.CloseStreamingJob;
+import fun.dokcn.entity.TriggerInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.WebDriver;
 import org.quartz.*;
@@ -9,16 +10,20 @@ import org.quartz.impl.StdSchedulerFactory;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Date;
-import java.util.Optional;
+import java.util.List;
+import java.util.Objects;
 
-import static fun.dokcn.Constants.*;
-import static fun.dokcn.util.DateTimeUtil.dateToLocalDateTime;
-import static fun.dokcn.util.DateTimeUtil.localDateTimeToDate;
+import static fun.dokcn.Constants.CLOSE_STREAMING_JOB_NAME;
+import static fun.dokcn.Constants.STREAMING_GROUP;
+import static fun.dokcn.util.DateTimeUtil.*;
+import static fun.dokcn.util.RandomUtil.randomString;
 
 @Slf4j
 public class SchedulingUtil {
 
-    static Scheduler scheduler;
+    public static Scheduler scheduler;
+
+    public static final JobKey CLOSE_STREAMING_JOB_KEY = new JobKey(CLOSE_STREAMING_JOB_NAME, STREAMING_GROUP);
 
     static {
         try {
@@ -30,33 +35,55 @@ public class SchedulingUtil {
     }
 
     public static LocalDateTime getNextTriggerTime() {
-        LocalDateTime nextTriggerTime;
         try {
             Date now = new Date();
-            LocalDateTime triggerNextTime = Optional.ofNullable(scheduler.getTrigger(TriggerKey.triggerKey(CLOSE_STREAMING_TRIGGER_KEY)))
-                    .map(trigger -> dateToLocalDateTime(trigger.getFireTimeAfter(now)))
+            List<? extends Trigger> triggersOfJob = getTriggersOfJob(CLOSE_STREAMING_JOB_KEY);
+            LocalDateTime nextTriggerTime = triggersOfJob.stream()
+                    .map(trigger -> trigger.getFireTimeAfter(now))
+                    .filter(Objects::nonNull)
+                    .map(DateTimeUtil::dateToLocalDateTime)
+                    .sorted()
+                    .findFirst()
                     .orElse(null);
-            LocalDateTime triggerOnceNextTime = Optional.ofNullable(scheduler.getTrigger(TriggerKey.triggerKey(CLOSE_STREAMING_ONCE_TRIGGER_KEY)))
-                    .map(trigger -> dateToLocalDateTime(trigger.getFireTimeAfter(now)))
-                    .orElse(null);
-
-            if (triggerNextTime != null && triggerOnceNextTime != null) {
-                nextTriggerTime = triggerNextTime.isBefore(triggerOnceNextTime) ?
-                        triggerNextTime :
-                        triggerOnceNextTime;
-            } else {
-                nextTriggerTime = triggerNextTime != null ?
-                        triggerNextTime :
-                        triggerOnceNextTime;
-            }
-            log.info("next trigger time after now: {}", nextTriggerTime);
+            log.info("next trigger time after now: {}", nextTriggerTime == null ? "none" : nextTriggerTime);
             return nextTriggerTime;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static List<? extends Trigger> getTriggersOfJob(JobKey jobKey) {
+        try {
+            return scheduler.getTriggersOfJob(CLOSE_STREAMING_JOB_KEY);
         } catch (SchedulerException e) {
             throw new RuntimeException(e);
         }
     }
 
-    static Trigger createTrigger(String triggerKey, LocalTime triggerTime, String jobKeyString) {
+    public static List<TriggerInfo> getTriggerInfosOfJob(JobKey jobKey) {
+        Date now = new Date();
+        return getTriggersOfJob(CLOSE_STREAMING_JOB_KEY)
+                .stream()
+                .filter(trigger -> trigger.getFireTimeAfter(now) != null)
+                .map(trigger -> {
+                    Date triggerTimeAfterNow = trigger.getFireTimeAfter(now);
+                    boolean repeated = trigger.getFinalFireTime() == null;
+                    TriggerInfo triggerInfo = TriggerInfo.builder()
+                            .name(trigger.getKey().getName())
+                            .nextTriggerTime(dateToLocalDateTime(triggerTimeAfterNow))
+                            .repeated(repeated)
+                            .build();
+                    return triggerInfo;
+                })
+                .toList();
+    }
+
+    public static Trigger createTrigger(String triggerName, JobKey jobKey,
+                                        LocalTime triggerTime, boolean repeated) {
+        if (jobKey == null) {
+            throw new IllegalArgumentException("jobKey cannot be null");
+        }
+
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime triggerDateTime = now.with(triggerTime);
         if (now.isAfter(triggerDateTime)) {
@@ -64,14 +91,21 @@ public class SchedulingUtil {
         }
         log.info("schedule start time: {}", triggerDateTime);
 
-        SimpleScheduleBuilder scheduleBuilder = CLOSE_STREAMING_ONCE_TRIGGER_KEY.equals(triggerKey) ?
-                SimpleScheduleBuilder.simpleSchedule() :
-                SimpleScheduleBuilder.repeatHourlyForever(24);
+        SimpleScheduleBuilder scheduleBuilder = repeated ?
+                SimpleScheduleBuilder.repeatHourlyForever(24) :
+                SimpleScheduleBuilder.simpleSchedule();
         scheduleBuilder.withMisfireHandlingInstructionIgnoreMisfires();
 
+        if (triggerName == null) {
+            triggerName = "%s-%s-%b-%s".formatted(jobKey.toString(),
+                    DATE_TIME_FORMATTER.format(triggerDateTime),
+                    repeated,
+                    randomString(6));
+        }
+
         Trigger trigger = TriggerBuilder.newTrigger()
-                .withIdentity(triggerKey)
-                .forJob(Optional.ofNullable(jobKeyString).map(JobKey::jobKey).orElse(null))
+                .withIdentity(triggerName)
+                .forJob(jobKey)
                 .startAt(localDateTimeToDate(triggerDateTime))
                 .withSchedule(scheduleBuilder)
                 .build();
@@ -79,38 +113,23 @@ public class SchedulingUtil {
         return trigger;
     }
 
-    public static void scheduleCloseStreaming(WebDriver driver) {
+    public static void scheduleCloseStreaming(WebDriver driver, String defaultTriggerTime) {
         try {
-            // if (scheduler.checkExists(JobKey.jobKey(CLOSE_STREAMING_JOB_KEY)))
-            //     return;
-
             JobDataMap jobDataMap = new JobDataMap();
             jobDataMap.put("webDriver", driver);
             JobDetail jobDetail = JobBuilder.newJob(CloseStreamingJob.class)
                     .withIdentity(CLOSE_STREAMING_JOB_KEY)
                     .setJobData(jobDataMap)
+                    .storeDurably()
                     .build();
 
-            Trigger trigger = createTrigger(CLOSE_STREAMING_TRIGGER_KEY, CLOSE_STREAMING_TRIGGER_TIME, null);
-
+            Trigger trigger = createTrigger(null,
+                    CLOSE_STREAMING_JOB_KEY,
+                    LocalTime.parse(defaultTriggerTime, TIME_FORMATTER),
+                    true);
             scheduler.scheduleJob(jobDetail, trigger);
-        } catch (SchedulerException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
-    public static void changeTriggerTime(LocalTime triggerTime, boolean isPermanent) {
-        try {
-            Trigger trigger = createTrigger(isPermanent ? CLOSE_STREAMING_TRIGGER_KEY : CLOSE_STREAMING_ONCE_TRIGGER_KEY,
-                    triggerTime,
-                    CLOSE_STREAMING_JOB_KEY);
-
-            TriggerKey triggerKey = trigger.getKey();
-            if (scheduler.getTrigger(triggerKey) != null) {
-                scheduler.rescheduleJob(triggerKey, trigger);
-            } else {
-                scheduler.scheduleJob(trigger);
-            }
+            // scheduler.addJob(jobDetail, true);
         } catch (SchedulerException e) {
             throw new RuntimeException(e);
         }

@@ -1,4 +1,4 @@
-package fun.dokcn;
+package fun.dokcn.config;
 
 import com.hellokaton.blade.ioc.annotation.Bean;
 import com.hellokaton.blade.mvc.handler.DefaultExceptionHandler;
@@ -15,7 +15,7 @@ public class GlobalExceptionHandler extends DefaultExceptionHandler {
     protected void handleException(Exception e, Request request, Response response) {
 
         String message = URLEncoder.encode(e.toString(), StandardCharsets.UTF_8);
-        response.redirect("/?exception=%s".formatted(message));
+        response.redirect("/?doNotCheckIsStreaming&exception=%s".formatted(message));
 
     }
 

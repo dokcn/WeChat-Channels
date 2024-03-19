@@ -16,12 +16,12 @@ import java.nio.file.Path;
 @Slf4j
 public class SeleniumUtil {
 
-    public static void takeScreenshot(WebDriver driver) {
+    public static void takeScreenshot(WebDriver driver, String pathString) {
         if (driver instanceof TakesScreenshot takesScreenshot) {
             Path screenshotPath = takesScreenshot.getScreenshotAs(OutputType.FILE).toPath();
             String screenshotFilename = screenshotPath.getFileName().toString();
             try {
-                Files.copy(screenshotPath, Path.of("/Users/yuanhongyu", screenshotFilename));
+                Files.copy(screenshotPath, Path.of(pathString, screenshotFilename));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

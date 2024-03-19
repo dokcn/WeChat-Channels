@@ -1,0 +1,13 @@
+services:
+  wechat-channels:
+    build: .
+    ports:
+      - "9000:9000"
+  database-pg:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: ss45df6sAFwe+
+    volumes:
+      - for-db-init:/docker-entrypoint-initdb.d
+volumes:
+  for-db-init:

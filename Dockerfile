@@ -15,7 +15,7 @@ ENV LANG=C.utf8
 # update apt repo and install utility
 RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list && \
     apt-get update && \
-    apt-get install --no-install-recommends curl wget unzip -y
+    apt-get install --no-install-recommends curl wget unzip jq -y
 
 # install jdk
 ARG jdkVersion=17
@@ -33,18 +33,18 @@ RUN wget -nv $chromeDownloadUrl && \
     google-chrome --version && \
     rm google-chrome-stable_current_amd64.deb
 
-RUN <<EOC
-    set -ex
-    fullChromeVersion=`google-chrome --version`
-    chromeVersion=`echo $fullChromeVersion | cut -d ' ' -f 3 | cut -d '.' -f 1,2,3`
-    chromedriverVersion=`curl https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${chromeVersion}`
-    wget -nv https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${chromedriverVersion}/linux64/chromedriver-linux64.zip
-    unzip chromedriver-linux64.zip
-    cp chromedriver-linux64/chromedriver /bin
-    chromedriver --version
-    rm -rf chromedriver-linux64
-    rm chromedriver-linux64.zip
-EOC
+# curl proxy arg for accesss file blocked in GFW, specified by: --build-arg PROXY='-x host.docker.internal:port'
+ARG PROXY
+RUN fullChromeVersion=`google-chrome --version` && \
+    chromeVersion=`echo $fullChromeVersion | cut -d ' ' -f 3 | cut -d '.' -f 1,2,3` && \
+    curl $PROXY -o versions.json 'https://googlechromelabs.github.io/chrome-for-testing/latest-patch-versions-per-build-with-downloads.json' && \
+    chromedriverDownloadUrl=`jq -r '.builds["'${chromeVersion}'"].downloads.chromedriver | .[] | select(.platform == "linux64").url' versions.json` && \
+    curl $PROXY -O $chromedriverDownloadUrl && \
+    unzip chromedriver-linux64.zip && \
+    cp chromedriver-linux64/chromedriver /bin && \
+    chromedriver --version && \
+    rm -rf chromedriver-linux64 && \
+    rm chromedriver-linux64.zip versions.json
 
 # remove apt cache
 RUN rm -rf /var/lib/apt/lists/*
@@ -59,8 +59,8 @@ COPY pom.xml .
 RUN mvn dependency:resolve
 
 # prefetch jars for maven exec plugin
-RUN mvn exec:help
 RUN mvn compiler:help
+RUN mvn exec:help
 
 # copy java source files
 COPY src src
