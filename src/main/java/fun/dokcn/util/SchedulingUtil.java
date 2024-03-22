@@ -68,12 +68,11 @@ public class SchedulingUtil {
                 .map(trigger -> {
                     Date triggerTimeAfterNow = trigger.getFireTimeAfter(now);
                     boolean repeated = trigger.getFinalFireTime() == null;
-                    TriggerInfo triggerInfo = TriggerInfo.builder()
+                    return TriggerInfo.builder()
                             .name(trigger.getKey().getName())
                             .nextTriggerTime(dateToLocalDateTime(triggerTimeAfterNow))
                             .repeated(repeated)
                             .build();
-                    return triggerInfo;
                 })
                 .toList();
     }

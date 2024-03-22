@@ -35,7 +35,7 @@ import static fun.dokcn.util.SchedulingUtil.clearScheduler;
 public class StreamingService {
 
     public static void saveCookies(WebDriver driver) throws Exception {
-        driver.get(HOMEPAGE_URL);
+        driver.get(MAIN_URL);
         // TODO remove sleep
         TimeUnit.SECONDS.sleep(10);
 
@@ -59,7 +59,7 @@ public class StreamingService {
     }
 
     public static void loadCookies(WebDriver driver) throws Exception {
-        driver.get(HOMEPAGE_URL);
+        driver.get(MAIN_URL);
 
         try (BufferedReader reader = new BufferedReader(new FileReader(COOKIES_FILE_PATH))) {
             String line;
@@ -74,7 +74,7 @@ public class StreamingService {
                 driver.manage().addCookie(cookie);
             }
         }
-        driver.navigate().to(HOMEPAGE_URL);
+        driver.navigate().to(MAIN_URL);
     }
 
     public static boolean isLoggedIn(WebDriver driver, boolean throwException) {
@@ -105,7 +105,7 @@ public class StreamingService {
     public static boolean isStreaming(WebDriver driver) {
         if (!isLoggedIn(driver)) return false;
 
-        if (toHomepage(driver))
+        if (toMainPage(driver))
             driver.navigate().refresh();
 
         By loadingXpath = By.xpath("//*[@id=\"container-wrap\"]/div[1]");
@@ -146,10 +146,10 @@ public class StreamingService {
     /**
      * @return true indicates need to refresh page
      */
-    public static boolean toHomepage(WebDriver driver) {
+    public static boolean toMainPage(WebDriver driver) {
         String currentUrl = driver.getCurrentUrl();
-        if (!HOMEPAGE_URL.equals(currentUrl)) {
-            driver.get(HOMEPAGE_URL);
+        if (!MAIN_URL.equals(currentUrl)) {
+            driver.get(MAIN_URL);
             return false;
         }
         return true;
@@ -179,14 +179,20 @@ public class StreamingService {
         Thread thread = new Thread(() -> {
             while (true) {
                 try {
-                    TimeUnit.MINUTES.sleep(randomIntegerInRange(10, 30));
-                    // TimeUnit.SECONDS.sleep(15);
+                    TimeUnit.MINUTES.sleep(randomIntegerInRange(2, 5));
+                    // TimeUnit.SECONDS.sleep(30);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
                 if (!inOperation) {
                     inRefreshing = true;
-                    driver.navigate().refresh();
+
+                    // driver.navigate().refresh();
+                    By homepageButtonXpath = By.xpath("/html/body/div[1]/div/div[1]/div/div/ul/li[1]/a");
+                    driver.findElement(homepageButtonXpath).click();
+                    sleepInSeconds(2);
+                    driver.get(MAIN_URL);
+
                     log.info("page refreshed");
                     inRefreshing = false;
                 } else {
@@ -209,7 +215,7 @@ public class StreamingService {
 
         inOperation = true;
         try {
-            if (toHomepage(driver)) {
+            if (toMainPage(driver)) {
                 driver.navigate().refresh();
             }
 
@@ -254,7 +260,7 @@ public class StreamingService {
             return;
         }
 
-        toHomepage(driver);
+        toMainPage(driver);
 
         // todo: add wait
         By usernameBarXpath = By.xpath("/html/body/div[1]/div/div[1]/div/div/div[2]/div/div[2]");

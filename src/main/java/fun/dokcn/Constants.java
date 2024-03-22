@@ -8,11 +8,12 @@ public interface Constants {
     String QR_CODE_FILE_PATH = "g:/qrcode.png";
 
     // urls
+    String HOMEPAGE_URL = "https://channels.weixin.qq.com/platform";
     String STREAMING_HOME_URL = "https://channels.weixin.qq.com/platform/live/home";
     String INCOME_INFO_URL = "https://channels.weixin.qq.com/platform/statistic/live?mode=history";
 
     String LOGIN_URL = "https://channels.weixin.qq.com/login.html";
-    String HOMEPAGE_URL = STREAMING_HOME_URL;
+    String MAIN_URL = STREAMING_HOME_URL;
 
     // system property names
     String BROWSER_BINARY_LOCATION_PROPERTY_NAME = "browserBinaryLocation";

@@ -17,9 +17,12 @@
         img {
             width: 250px;
             height: 250px;
-            margin-top: 20px;
-            margin-bottom: 20px;
+            margin: 20px 0;
             filter: contrast(200%) brightness(200%);
+        }
+
+        button {
+            margin-bottom: 10px;
         }
     </style>
 </head>

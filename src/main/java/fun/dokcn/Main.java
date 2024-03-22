@@ -45,7 +45,6 @@ public class Main {
         Blade blade = Blade.create();
         blade.staticOptions().addStatic("\\static");
 
-        // todo: do not check streaming status generally
         blade.get("/", ctx -> {
                     boolean loggedIn = isLoggedIn(driver);
                     ctx.attribute("isLoggedIn", loggedIn);
@@ -58,8 +57,8 @@ public class Main {
                     ctx.attribute("exception", exception);
 
                     if (loggedIn) {
-                        boolean doNotCheckIsStreaming = ctx.query("doNotCheckIsStreaming") != null;
-                        ctx.attribute("isStreaming", !doNotCheckIsStreaming && isStreaming(driver));
+                        // boolean doNotCheckIsStreaming = ctx.query("doNotCheckIsStreaming") != null;
+                        // ctx.attribute("isStreaming", !doNotCheckIsStreaming && isStreaming(driver));
 
                         LocalDateTime nextTriggerTime = getNextTriggerTime();
                         if (nextTriggerTime != null) {
@@ -70,6 +69,16 @@ public class Main {
                     }
 
                     ctx.render("home");
+                })
+
+                .get("isStreaming", ctx -> {
+                    String result = """
+                            {
+                              "isStreaming": %b
+                            }
+                            """.formatted(isStreaming(driver));
+                    // ctx.json(result);
+                    ctx.badRequest();
                 })
 
                 .get("/login", ctx -> {
@@ -83,7 +92,7 @@ public class Main {
                 })
 
                 .get("/finishLogin", ctx -> {
-                    toHomepage(driver);
+                    toMainPage(driver);
                     isLoggedIn(driver, true);
 
                     synchronized (Main.class) {
@@ -176,7 +185,7 @@ public class Main {
 
         // Utils.recordConsoleLogs(driver);
 
-        driver.get(HOMEPAGE_URL);
+        driver.get(MAIN_URL);
         driver.navigate().refresh();
 
         Runtime.getRuntime().addShutdownHook(new Thread(driver::quit));

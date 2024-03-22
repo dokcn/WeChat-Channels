@@ -30,6 +30,20 @@ a, button {
     font-weight: 600;
 
     cursor: pointer;
-    padding-bottom: 2px;
-    margin-bottom: 10px;
+    padding-bottom: 1px;
+    /*margin-bottom: 10px;*/
+}
+
+.text-ellipsis-1 {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+}
+
+.text-ellipsis-2 {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }

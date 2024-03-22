@@ -13,11 +13,12 @@
         }
 
         .row:nth-of-type(n+2) {
-            border-top: 1px solid gray;
+            border-top: 1px solid rgba(178, 178, 178, .5);
         }
 
         .row-group {
             display: flex;
+            justify-content: space-between;
         }
 
         .row-group:nth-child(n+2) {
@@ -25,7 +26,11 @@
         }
 
         .row div {
-            font-size: 0.9em;
+            margin-right: 30px;
+        }
+
+        .row span {
+            font-size: 1.1rem;
             margin-right: 30px;
         }
 
@@ -35,6 +40,20 @@
 
         a[href="/"] {
             margin-top: 10px;
+        }
+
+        @media screen and (max-width: 768px) {
+            * {
+                font-size: 20px;
+            }
+
+            .row-group {
+                flex-direction: column;
+            }
+
+            .row-group div:nth-child(n+2) {
+                margin-top: 10px;
+            }
         }
     </style>
 </head>
@@ -46,12 +65,12 @@
         <div class="row">
             <div class="row-group">
                 <div>直播标题: ${incomeInfo.streamingTitle()}</div>
-                <div>直播开始时间: ${incomeInfo.streamingTime()}</div>
+                <div><span style="font-weight: bolder">直播开始时间: ${incomeInfo.streamingTime()}</span></div>
             </div>
             <div class="row-group">
                 <div>直播持续时间: ${incomeInfo.streamingDuration()}</div>
                 <div>观看人数: ${incomeInfo.numberOfWatch()}</div>
-                <div style="font-weight: bolder">收入: ${incomeInfo.income()}</div>
+                <div><span style="font-weight: bolder">收入: ${incomeInfo.income()}</span></div>
             </div>
         </div>
     </#list>
