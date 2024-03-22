@@ -77,8 +77,7 @@ public class Main {
                               "isStreaming": %b
                             }
                             """.formatted(isStreaming(driver));
-                    // ctx.json(result);
-                    ctx.badRequest();
+                    ctx.json(result);
                 })
 
                 .get("/login", ctx -> {
