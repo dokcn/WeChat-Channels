@@ -34,6 +34,7 @@ import static fun.dokcn.util.SchedulingUtil.clearScheduler;
 @Slf4j
 public class StreamingService {
 
+    // TODO: save cookies when container stop and load it while container up, avoid login state invalid
     public static void saveCookies(WebDriver driver) throws Exception {
         driver.get(MAIN_URL);
         // TODO remove sleep
@@ -102,7 +103,7 @@ public class StreamingService {
 
     private static final ExecutorService IS_STREAMING_DETECTOR_POOL = Executors.newCachedThreadPool();
 
-    public static boolean isStreaming(WebDriver driver) {
+    public static synchronized boolean isStreaming(WebDriver driver) {
         if (!isLoggedIn(driver)) return false;
 
         if (toMainPage(driver))
@@ -169,9 +170,6 @@ public class StreamingService {
         return qrCodeDataUrl;
     }
 
-    static volatile boolean inOperation = false;
-    static volatile boolean inRefreshing = false;
-
     public static volatile boolean LOGIN_FINISHED = false;
 
     public static void startRefresherThread(WebDriver driver) {
@@ -180,23 +178,29 @@ public class StreamingService {
             while (true) {
                 try {
                     TimeUnit.MINUTES.sleep(randomIntegerInRange(2, 5));
-                    // TimeUnit.SECONDS.sleep(30);
+                    // TimeUnit.SECONDS.sleep(3);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                if (!inOperation) {
-                    inRefreshing = true;
 
-                    // driver.navigate().refresh();
-                    By homepageButtonXpath = By.xpath("/html/body/div[1]/div/div[1]/div/div/ul/li[1]/a");
-                    driver.findElement(homepageButtonXpath).click();
-                    sleepInSeconds(2);
-                    driver.get(MAIN_URL);
+                synchronized (StreamingService.class) {
+                    try {
+                        if (!LOGIN_FINISHED) {
+                            log.info("already logged out, quit refresher");
+                            break;
+                        }
 
-                    log.info("page refreshed");
-                    inRefreshing = false;
-                } else {
-                    log.info("in operation");
+                        log.info("starting refresh");
+                        // driver.navigate().refresh();
+                        By homepageButtonXpath = By.xpath("/html/body/div[1]/div/div[1]/div/div/ul/li[1]/a");
+                        driver.findElement(homepageButtonXpath).click();
+                        sleepInSeconds(2);
+                        driver.get(MAIN_URL);
+
+                        log.info("refresh finish");
+                    } catch (Exception e) {
+                        log.error("refresh failed: ", e);
+                    }
                 }
             }
         });
@@ -206,18 +210,12 @@ public class StreamingService {
     }
 
     public static synchronized void closeStreaming(WebDriver driver) {
-        // todo: handle situation of not streaming
-        isLoggedIn(driver, true);
-
-        while (inRefreshing) {
-            log.info("refreshing");
-        }
-
-        inOperation = true;
         try {
             if (toMainPage(driver)) {
                 driver.navigate().refresh();
             }
+
+            isLoggedIn(driver, true);
 
             By enterStreamingRoomButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div/div[2]/div/button");
 
@@ -249,12 +247,10 @@ public class StreamingService {
             }
         } catch (Exception e) {
             log.error("close streaming fail: ", e);
-        } finally {
-            inOperation = false;
         }
     }
 
-    public static void logout(WebDriver driver) {
+    public static synchronized void logout(WebDriver driver) {
         if (!isLoggedIn(driver)) {
             log.info("not logged in, abort logout");
             return;

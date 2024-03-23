@@ -71,7 +71,7 @@ public class Main {
                     ctx.render("home");
                 })
 
-                .get("isStreaming", ctx -> {
+                .get("/isStreaming", ctx -> {
                     String result = """
                             {
                               "isStreaming": %b

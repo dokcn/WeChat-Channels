@@ -144,8 +144,11 @@
         <a href="/logout">退出登录</a>
     <#-- <div>是否已开播: ${isStreaming?string('是', '否')}</div> -->
         <div id="isStreaming">是否已开播: 正在获取...</div>
+    <#-- TODO: add animation when submitting -->
+    <#-- TODO: close confirmation, e.g. alert -->
         <form id="closeStreaming" style="display: none" action="/closeStreaming" method="post">
-            <button type="submit">关闭直播</button>
+            <button type="button" onclick="handleCloseStreaming()">关闭直播</button>
+            <button id="closeStreamingButton" type="submit" style="display: none"></button>
         </form>
 
         <a href="/income">查看收入</a>
@@ -206,6 +209,14 @@
     <a href="/">刷新状态</a>
 </div>
 <script>
+    const handleCloseStreaming = (event) => {
+        const confirmCloseStreaming = confirm('确定关闭直播吗？');
+        if (confirmCloseStreaming) {
+            const closeStreamingButton = document.querySelector('#closeStreamingButton');
+            closeStreamingButton.click();
+        }
+    };
+
     onload = (event) => {
         let isStreamingElement = document.querySelector('#isStreaming');
         let closeStreamingElement = document.querySelector('#closeStreaming');
