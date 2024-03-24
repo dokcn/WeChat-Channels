@@ -6,40 +6,49 @@
     <title>直播收入</title>
     <link rel="stylesheet" href="../static/common.css">
     <style>
+        h1 {
+            font-size: 1.5em;
+        }
+
         .row {
             display: flex;
             flex-direction: column;
             padding: 10px 10px 10px 0;
         }
 
+        .row-group {
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 5px;
+        }
+
+        .item {
+            line-height: 1.2;
+        }
+
         .row:nth-of-type(n+2) {
             border-top: 1px solid rgba(178, 178, 178, .5);
         }
 
-        .row-group {
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .row-group:nth-child(n+2) {
-            margin-top: 10px;
-        }
-
-        .row div {
-            margin-right: 30px;
-        }
-
         .row span {
             font-size: 1.1rem;
-            margin-right: 30px;
         }
 
-        .row div:last-of-type {
-            margin-right: 0;
+        .title {
+            flex-basis: 60%;
         }
 
-        a[href="/"] {
-            margin-top: 10px;
+        .title > span {
+            background: rgba(167, 167, 167, 0.18);
+            padding: 3px 4px 5px 0;
+        }
+
+        .duration {
+            flex-basis: 40%;
+        }
+
+        .audience-count {
+            flex-basis: 20%;
         }
 
         @media screen and (max-width: 768px) {
@@ -60,17 +69,18 @@
 <body>
 <#-- todo: using grid layout -->
 <div class="container">
-    <h2>近期直播收入</h2>
+    <h1>近期直播收入</h1>
     <#list incomeInfoList as incomeInfo>
         <div class="row">
             <div class="row-group">
-                <div>直播标题: ${incomeInfo.streamingTitle()}</div>
-                <div><span style="font-weight: bolder">直播开始时间: ${incomeInfo.streamingTime()}</span></div>
+                <div class="item title"><span>直播标题: ${incomeInfo.streamingTitle()}</span></div>
+                <div class="item start-time"><span
+                            style="font-weight: bolder">直播开始时间: ${incomeInfo.streamingTime()}</span></div>
             </div>
             <div class="row-group">
-                <div>直播持续时间: ${incomeInfo.streamingDuration()}</div>
-                <div>观看人数: ${incomeInfo.numberOfWatch()}</div>
-                <div><span style="font-weight: bolder">收入: ${incomeInfo.income()}</span></div>
+                <div class="item duration">直播持续时间: ${incomeInfo.streamingDuration()}</div>
+                <div class="item audience-count">观看人数: ${incomeInfo.numberOfWatch()}</div>
+                <div class="item income"><span style="font-weight: bolder">收入: ${incomeInfo.income()}</span></div>
             </div>
         </div>
     </#list>
