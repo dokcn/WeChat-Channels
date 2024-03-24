@@ -6,6 +6,14 @@
     <title>直播收入</title>
     <link rel="stylesheet" href="../static/common.css">
     <style>
+        * {
+            font-size: 18px;
+        }
+
+        .container {
+            width: 80vw;
+        }
+
         h1 {
             font-size: 1.5em;
         }
@@ -19,7 +27,10 @@
         .row-group {
             display: flex;
             align-items: baseline;
-            margin-bottom: 5px;
+        }
+
+        .row-group:nth-child(2) {
+            margin-top: 10px;
         }
 
         .item {
