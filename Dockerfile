@@ -72,5 +72,5 @@ RUN mvn compile -DskipTests
 #ENV MAVEN_OPTS="-Xms256m -Xmx256m"
 
 # default behavior: run java application
-#ENTRYPOINT mvn -Dheadless -DwebDriverLogLevel=info -DdriverBinaryLocation=/bin/chromedriver -X exec:java
-ENTRYPOINT mvn -Dheadless -DdriverBinaryLocation=/bin/chromedriver -X exec:java
+ENTRYPOINT mvn -Dheadless -DwebDriverLogLevel=info -DdriverBinaryLocation=/bin/chromedriver -X exec:java
+#ENTRYPOINT mvn -Dheadless -DdriverBinaryLocation=/bin/chromedriver -X exec:java
