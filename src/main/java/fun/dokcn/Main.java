@@ -247,6 +247,7 @@ public class Main {
         // Disables the sandbox for all process types that are normally sandboxed
         options.addArguments("--no-sandbox");
 
+        // For Ubuntu 24.04
         options.addArguments("--disable-gpu-driver-bug-workarounds");
 
         return options;
