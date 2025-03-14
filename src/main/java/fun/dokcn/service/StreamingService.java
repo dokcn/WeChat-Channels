@@ -149,7 +149,7 @@ public class StreamingService {
         }
 
         try {
-            return new WebDriverWait(driver, Duration.ofSeconds(5))
+            return !new WebDriverWait(driver, Duration.ofSeconds(5))
                     .until(new UrlNotToBeCondition(STREAMING_CONTROL_URL));
         } catch (TimeoutException e) {
             return true;
