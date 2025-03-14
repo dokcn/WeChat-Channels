@@ -1,14 +1,14 @@
 package fun.dokcn;
 
-import fun.dokcn.util.RandomUtil;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.remote.RemoteWebDriver;
 
 public class Test {
 
     public static void main(String[] args) throws Exception {
 
-        for (int i = 0; i < 10; i++) {
-            System.out.println(RandomUtil.randomString(10));
-        }
+
 
     }
 

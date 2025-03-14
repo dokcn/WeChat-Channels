@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static fun.dokcn.Constants.*;
@@ -46,12 +47,24 @@ public class Main {
         blade.staticOptions().addStatic("\\static");
 
         blade.get("/", ctx -> {
+
                     boolean loggedIn = isLoggedIn(driver);
-                    ctx.attribute("isLoggedIn", loggedIn);
+
+                    /*if (!loggedIn) {
+                        try {
+                            loadCookies(driver);
+                            loggedIn = isLoggedIn(driver);
+                        } catch (Exception e) {
+                            System.out.println("load cookies wrong: " + e);
+                        }
+                    }*/
+
                     if (loggedIn && !LOGIN_FINISHED) {
-                        ctx.redirect("/finishLogin");
+                        ctx.redirect("/finishLogin?notTouchCookies");
                         return;
                     }
+
+                    ctx.attribute("isLoggedIn", loggedIn);
 
                     String exception = ctx.query("exception");
                     ctx.attribute("exception", exception);
@@ -91,6 +104,12 @@ public class Main {
                 })
 
                 .get("/finishLogin", ctx -> {
+                    /*if (ctx.query("notTouchCookies") == null) {
+                        try {
+                            saveCookies(driver);
+                        } catch (Exception ignored) {
+                        }
+                    }*/
                     toMainPage(driver);
                     isLoggedIn(driver, true);
 
@@ -114,7 +133,7 @@ public class Main {
                 })
 
                 .post("/closeStreaming", ctx -> {
-                    closeStreaming(driver);
+                    closeStreaming2(driver);
                     ctx.redirect("/");
                 });
 
@@ -179,6 +198,9 @@ public class Main {
         ChromeOptions options = createOptions(headless);
 
         RemoteWebDriver driver = new ChromeDriver(driverService, options);
+
+        // driver.manage().window().minimize();
+
         driver = new EventFiringDecorator<>(RemoteWebDriver.class, new SeleniumListener(driver))
                 .decorate(driver);
 
@@ -207,6 +229,7 @@ public class Main {
 
     static ChromeOptions createOptions(boolean headless) {
         ChromeOptions options = new ChromeOptions();
+
 
         Optional<String> browserBinaryLocation = Optional.ofNullable(System.getProperty(BROWSER_BINARY_LOCATION_PROPERTY_NAME));
         browserBinaryLocation.ifPresent(binary -> {

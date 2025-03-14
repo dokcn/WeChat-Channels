@@ -3,13 +3,14 @@ package fun.dokcn;
 public interface Constants {
 
     String COOKIES_FILE_PATH = "g:/cookies.txt";
-    String COOKIE_PARTS_DELIMITER = ":";
+    String COOKIE_PARTS_DELIMITER = "---:::";
 
     String QR_CODE_FILE_PATH = "g:/qrcode.png";
 
     // urls
     String HOMEPAGE_URL = "https://channels.weixin.qq.com/platform";
     String STREAMING_HOME_URL = "https://channels.weixin.qq.com/platform/live/home";
+    String STREAMING_CONTROL_URL = "https://channels.weixin.qq.com/platform/live/liveBuild";
     String INCOME_INFO_URL = "https://channels.weixin.qq.com/platform/statistic/live?mode=history";
 
     String LOGIN_URL = "https://channels.weixin.qq.com/login.html";

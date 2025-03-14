@@ -12,7 +12,7 @@ const poll = () => {
         } else {
             poll()
         }
-    }, 2000)
+    }, 5000)
 }
 
 onload = (event) => {

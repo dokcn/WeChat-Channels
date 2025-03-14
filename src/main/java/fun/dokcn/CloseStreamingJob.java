@@ -7,7 +7,7 @@ import org.quartz.JobExecutionContext;
 
 import java.util.Date;
 
-import static fun.dokcn.service.StreamingService.closeStreaming;
+import static fun.dokcn.service.StreamingService.closeStreaming2;
 
 @Slf4j
 public class CloseStreamingJob implements Job {
@@ -17,7 +17,7 @@ public class CloseStreamingJob implements Job {
         // todo: add retry logic
         log.info("firing close streaming");
         WebDriver driver = (WebDriver) context.getMergedJobDataMap().get("webDriver");
-        closeStreaming(driver);
+        closeStreaming2(driver);
         Date nextTriggerTime = context.getNextFireTime();
         log.info("next trigger time: {}", nextTriggerTime == null ? "none" : nextTriggerTime);
     }

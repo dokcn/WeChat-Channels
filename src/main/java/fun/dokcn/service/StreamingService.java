@@ -2,10 +2,8 @@ package fun.dokcn.service;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.openqa.selenium.By;
-import org.openqa.selenium.Cookie;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.*;
+import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -13,35 +11,39 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.PrintWriter;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Date;
+import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.StringTokenizer;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static fun.dokcn.Constants.*;
+import static fun.dokcn.util.DateTimeUtil.toGMTString;
 import static fun.dokcn.util.MiscUtil.sleepInSeconds;
 import static fun.dokcn.util.RandomUtil.randomIntegerInRange;
 import static fun.dokcn.util.SchedulingUtil.clearScheduler;
+import static fun.dokcn.util.StringUtil.ifBlank;
 
 @Slf4j
 public class StreamingService {
 
     // TODO: save cookies when container stop and load it while container up, avoid login state invalid
     public static void saveCookies(WebDriver driver) throws Exception {
-        driver.get(MAIN_URL);
+        // driver.get(MAIN_URL);
         // TODO remove sleep
-        TimeUnit.SECONDS.sleep(10);
+        // TimeUnit.SECONDS.sleep(10);
 
         Set<Cookie> cookies = driver.manage().getCookies();
         Path path = Path.of(COOKIES_FILE_PATH);
+        try (FileChannel f = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+        }
 
         try (PrintWriter writer = new PrintWriter(path.toFile())) {
             for (Cookie cookie : cookies) {
@@ -56,29 +58,57 @@ public class StreamingService {
                 System.out.println(joiner);
                 writer.println(joiner);
             }
+            writer.flush();
         }
     }
 
     public static void loadCookies(WebDriver driver) throws Exception {
-        driver.get(MAIN_URL);
+        // driver.get(MAIN_URL);
 
         try (BufferedReader reader = new BufferedReader(new FileReader(COOKIES_FILE_PATH))) {
-            String line;
-            while (StrUtil.isNotBlank(line = reader.readLine())) {
-                StringTokenizer tokenizer = new StringTokenizer(line, COOKIE_PARTS_DELIMITER);
-                Cookie cookie = new Cookie(tokenizer.nextToken(), tokenizer.nextToken(),
-                        tokenizer.nextToken(), tokenizer.nextToken(),
-                        Date.from(LocalDateTime.now().plusMonths(2).toInstant(ZoneOffset.ofHours(8))),
-                        Boolean.parseBoolean(tokenizer.nextToken()), Boolean.parseBoolean(tokenizer.nextToken()),
-                        tokenizer.nextToken());
-                System.out.println(cookie);
-                driver.manage().addCookie(cookie);
+            List<String> lines = reader.lines().toList();
+            if (lines.isEmpty()) {
+                System.out.println("no cookies data");
+                return;
             }
+
+            driver.manage().deleteAllCookies();
+            lines.forEach(line -> {
+                if (StrUtil.isNotBlank(line)) {
+                    String script = generateAddCookieScript(line);
+                    ((JavascriptExecutor) driver).executeScript(script);
+                }
+            });
         }
-        driver.navigate().to(MAIN_URL);
+        driver.get(MAIN_URL);
+    }
+
+    public static String generateAddCookieScript(String line) {
+        StringTokenizer tokenizer = new StringTokenizer(line, COOKIE_PARTS_DELIMITER);
+
+        String name = tokenizer.nextToken();
+        String value = tokenizer.nextToken();
+        String domain = ifBlank(tokenizer.nextToken(), ";domain=%s"::formatted);
+        String path = ifBlank(tokenizer.nextToken(), ";path=%s"::formatted);
+        String expiry = ifBlank(toGMTString(LocalDateTime.now().plusMonths(2)), ";expires=%s"::formatted);
+        String isSecure = ifBlank(tokenizer.nextToken(), it -> Boolean.parseBoolean(it) ? ";Secure" : "");
+        String isHttpOnly = ifBlank(tokenizer.nextToken(), it -> Boolean.parseBoolean(it) ? ";HttpOnly" : "");
+        String sameSite = ifBlank(tokenizer.nextToken(), ";SameSite=%s"::formatted);
+        // if (driver.manage().getCookieNamed(name) != null) {
+        //     driver.manage().deleteCookieNamed(name);
+        // }
+        String script = """
+                document.cookie = "%s=%s %s %s %s %s %s %s"
+                """.formatted(name, value, domain, path, expiry, isSecure, isHttpOnly, sameSite);
+        System.out.println(script);
+        return script;
     }
 
     public static boolean isLoggedIn(WebDriver driver, boolean throwException) {
+        // driver.get(MAIN_URL);
+        /*new WebDriverWait(driver, Duration.ofSeconds(5)).until(ExpectedConditions.jsReturnsValue("""
+                "return document.readyState === 'complete'
+                """));*/
         String currentUrl = driver.getCurrentUrl();
         // log.info("isLoggedIn currentUrl: {}", currentUrl);
         boolean notLoggedIn = LOGIN_URL.equals(currentUrl);
@@ -103,54 +133,90 @@ public class StreamingService {
 
     private static final ExecutorService IS_STREAMING_DETECTOR_POOL = Executors.newCachedThreadPool();
 
+    public record UrlNotToBeCondition(String testUrl) implements ExpectedCondition<Boolean> {
+        @Override
+        public Boolean apply(WebDriver driver) {
+            String currentUrl = driver.getCurrentUrl();
+            return !testUrl.equals(currentUrl);
+        }
+    }
+
     public static synchronized boolean isStreaming(WebDriver driver) {
         if (!isLoggedIn(driver)) return false;
 
-        if (toMainPage(driver))
+        if (toPage(driver, STREAMING_CONTROL_URL)) {
+            driver.navigate().refresh();
+        }
+
+        try {
+            return new WebDriverWait(driver, Duration.ofSeconds(5))
+                    .until(new UrlNotToBeCondition(STREAMING_CONTROL_URL));
+        } catch (TimeoutException e) {
+            return true;
+        }
+
+        /*if (toMainPage(driver))
             driver.navigate().refresh();
 
         By loadingXpath = By.xpath("//*[@id=\"container-wrap\"]/div[1]");
-        By startStreamingButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div[1]/div/div[3]/div[2]/div/button");
-        By enterStreamingRoomButtonXpath = By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div/div[3]/div[1]/div/div[2]/div/button");
-
         try {
-            Wait<WebDriver> wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            Wait<WebDriver> wait = new WebDriverWait(driver, Duration.ofSeconds(5));
             wait.until(ExpectedConditions.invisibilityOfElementLocated(loadingXpath));
         } catch (Exception e) {
-            log.error("wait for loading layer wrong: ", e);
+            System.out.println("wait for loading layer wrong: " + e);
         }
 
-        boolean isStreaming = CompletableFuture.anyOf(
-                CompletableFuture.supplyAsync(() -> {
-                    try {
-                        Wait<WebDriver> waitForStartStreamingButton = new WebDriverWait(driver, Duration.ofSeconds(5));
-                        waitForStartStreamingButton.until(ExpectedConditions.presenceOfElementLocated(startStreamingButtonXpath));
-                        return false;
-                    } catch (Exception e) {
-                        return true;
-                    }
-                }, IS_STREAMING_DETECTOR_POOL),
-                CompletableFuture.supplyAsync(() -> {
-                    try {
-                        Wait<WebDriver> waitForEnterStreamingRoomButton = new WebDriverWait(driver, Duration.ofSeconds(5));
-                        waitForEnterStreamingRoomButton.until(ExpectedConditions.presenceOfElementLocated(enterStreamingRoomButtonXpath));
-                        return true;
-                    } catch (Exception e) {
-                        return false;
-                    }
-                }, IS_STREAMING_DETECTOR_POOL)
-        ).handle((result, error) -> error == null && (boolean) result).join();
+        try {
+            By isLivingTextBy = By.cssSelector("#container-wrap > div.container-center > div > div > div > div.main-body > div.live-entrance > div > div.introduction > div");
+            Wait<WebDriver> waitForEnterStreamingRoomButton = new WebDriverWait(driver, Duration.ofSeconds(3));
+            waitForEnterStreamingRoomButton.until(new FindElementInShadowDomCondition(By.xpath("//*[@id=\"container-wrap\"]/div[2]/div/wujie-app"), isLivingTextBy));
+            System.out.println("waitForEnterStreamingRoomButton success");
+            return true;
+        } catch (Throwable e) {
+            System.out.println("waitForEnterStreamingRoomButton failed: " + e);
+            return false;
+        }*/
+    }
 
-        return isStreaming;
+    private record FindElementInShadowDomCondition(By shadowHostBy,
+                                                   By targetBy) implements ExpectedCondition<WebElement> {
+        @Override
+        public WebElement apply(WebDriver driver) {
+            WebElement shadowHost = new WebDriverWait(driver, Duration.ofSeconds(5))
+                    .until(ExpectedConditions.presenceOfElementLocated(shadowHostBy));
+            SearchContext shadowRoot = shadowHost.getShadowRoot();
+            /*try {
+                return shadowRoot.findElement(targetBy);
+            } catch (StaleElementReferenceException e) {
+                return null;
+            }*/
+            return fineElementInShadowDom(driver, shadowHostBy, targetBy);
+        }
+    }
+
+    private static WebElement fineElementInShadowDom(WebDriver driver, By shadowHostBy, By targetBy) {
+        JavascriptExecutor javascriptExecutor = (JavascriptExecutor) driver;
+        // WebElement shadowHost = driver.findElement(shadowHostBy);
+        // SearchContext shadowRoot = (SearchContext) javascriptExecutor.executeScript("return arguments[0].shadowRoot", shadowHost);
+        // return shadowRoot.findElement(targetBy);
+        WebElement e = (WebElement) javascriptExecutor.executeScript("return document.querySelector(\"#container-wrap > div.container-center > div > wujie-app\").shadowRoot.querySelector(\"#container-wrap > div.container-center > div > div > div > div.main-body > div.live-entrance > div > div.introduction > div\")");
+        return e;
     }
 
     /**
      * @return true indicates need to refresh page
      */
     public static boolean toMainPage(WebDriver driver) {
+        return toPage(driver, MAIN_URL);
+    }
+
+    /**
+     * @return true indicates need to refresh page
+     */
+    public static boolean toPage(WebDriver driver, String page) {
         String currentUrl = driver.getCurrentUrl();
-        if (!MAIN_URL.equals(currentUrl)) {
-            driver.get(MAIN_URL);
+        if (!page.equals(currentUrl)) {
+            driver.get(page);
             return false;
         }
         return true;
@@ -245,6 +311,36 @@ public class StreamingService {
                 WebElement closeStreamingConfirmButtonElement = wait.until(ExpectedConditions.elementToBeClickable(closeStreamingConfirmButtonAlternateXpath));
                 closeStreamingConfirmButtonElement.click();
             }
+        } catch (Exception e) {
+            log.error("close streaming fail: ", e);
+        }
+    }
+
+    public static synchronized void closeStreaming2(WebDriver driver) {
+        try {
+            isLoggedIn(driver, true);
+
+            if (!toPage(driver, STREAMING_CONTROL_URL)) {
+                sleepInSeconds(5);
+            }
+
+            String scriptForCloseStreaming = """
+                    document.querySelector('#container-wrap > div.container-center > div > wujie-app')
+                        .shadowRoot
+                        .querySelector('#container-wrap > div.container-center > div > div > div > div.live-realtime-title > div.live-realtime-title-right > div.content > div > button')
+                        .click()
+                    """;
+            String scriptForConfirmCloseStreaming = """
+                    document.querySelector('#container-wrap > div.container-center > div > wujie-app')
+                    .shadowRoot
+                    .querySelector('body > div:nth-child(4) > div > div > div > div.ant-popover-inner > div > div > div > div > div.dialog-ft > div.weui-desktop-btn_wrp.ok > button')
+                    .click()
+                    """;
+
+            JavascriptExecutor javascriptExecutor = (JavascriptExecutor) driver;
+            javascriptExecutor.executeScript(scriptForCloseStreaming);
+            sleepInSeconds(2);
+            javascriptExecutor.executeScript(scriptForConfirmCloseStreaming);
         } catch (Exception e) {
             log.error("close streaming fail: ", e);
         }

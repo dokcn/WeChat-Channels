@@ -25,4 +25,12 @@ public class DateTimeUtil {
         return LocalDateTime.ofInstant(date.toInstant(), ZoneId.of("Asia/Shanghai"));
     }
 
+    public static String toGMTString(LocalDateTime source, ZoneId sourceTimeZone) {
+        return source.atZone(sourceTimeZone).withZoneSameInstant(ZoneId.of("GMT")).format(DateTimeFormatter.RFC_1123_DATE_TIME);
+    }
+
+    public static String toGMTString(LocalDateTime source) {
+        return toGMTString(source, ZoneId.systemDefault());
+    }
+
 }
